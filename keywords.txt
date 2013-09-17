@@ -1,0 +1,37 @@
+#######################################
+# Syntax Coloring Map for mizraith_HDSP2111
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+mizraith_HDSP2111	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+setup	    KEYWORD2
+resetDisplay	KEYWORD2
+resetDisplays	KEYWORD2
+isScrollComplete   KEYWORD2
+setScrollCompleteFlag    KEYWORD2
+setScrollPosition  KEYWORD2
+automaticallyResetScrollFlagAndPosition  KEYWORD2
+automaticallyResetScrollFlagAndPositions KEYWORD2
+setScrollDelay        KEYWORD2
+setDisplayString      KEYWORD2
+setDisplayStringAsNew      KEYWORD2
+getDisplayString     KEYWORD2
+GoDogGo         KEYWORD2
+updateDisplays       KEYWORD2
+writeDisplay       KEYWORD2
+updateDisplay      KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+BLANK_STRING    LITERAL1
