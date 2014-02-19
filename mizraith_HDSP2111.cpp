@@ -10,23 +10,19 @@
 #include "mizraith_HDSP2111.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
-char mizraith_HDSP2111::BLANK_STRING[9] = "        ";
 
 mizraith_HDSP2111::mizraith_HDSP2111(void) {
-    DISPLAY1_LAST_UPDATE = 0;
-    DISPLAY1_STRING_LENGTH = 0;    //auto-calculated
-    DISPLAY1_SCROLL_POSITION = 0;   //[0:stringlength-1]
-    DISPLAY1_SCROLL_DELAY = 150;
-    DISPLAY1_SCROLL_COMPLETE = false;  //  (sets to 1 at end of string and stops operation)
-    DISPLAY1_STRING_CHANGED = false;
-    
-    DISPLAY2_LAST_UPDATE = 0;
-    DISPLAY2_STRING_LENGTH = 0;     //auto-calculated
-    DISPLAY2_SCROLL_POSITION = 0;   //[0:stringlength-1]
-    DISPLAY2_SCROLL_DELAY = 150;
-    DISPLAY2_SCROLL_COMPLETE = false;  //  (sets to 1 at end of string and stops operation)
-    DISPLAY2_STRING_CHANGED = false;
+    BLANK_STRING = "        ";     
+  
+    for (uint8_t i=0;  i < NUMBER_OF_DISPLAYS;  i++) {
+        DISPLAY_DATA[i].LAST_UPDATE = 0;
+        DISPLAY_DATA[i].TEXT = BLANK_STRING;
+        DISPLAY_DATA[i].TEXT_LENGTH = 0;
+        DISPLAY_DATA[i].SCROLL_POSITION = 0;
+        DISPLAY_DATA[i].SCROLL_DELAY = 120;
+        DISPLAY_DATA[i].SCROLL_COMPLETE = false;
+        DISPLAY_DATA[i].TEXT_CHANGED = false;
+    }
 }
 
 
@@ -61,8 +57,9 @@ void mizraith_HDSP2111::setup(uint8_t mcpaddr) {
   mcp_display.writePin(HDSP_CE2, HIGH);
   mcp_display.writePin(HDSP_WR, HIGH);
   
-  DISPLAY1_LAST_UPDATE = millis();         //set up our timers
-  DISPLAY2_LAST_UPDATE = millis();
+  for(uint8_t i=0; i<NUMBER_OF_DISPLAYS;  i++ ) {
+    DISPLAY_DATA[i].LAST_UPDATE = millis();
+  }
 }
 
 
@@ -77,11 +74,12 @@ void mizraith_HDSP2111::GoDogGo(void) {
 
 
 /**
- * Routine for clearing out both displays.
+ * Routine for clearing out ALL displays.
  */
 void mizraith_HDSP2111::resetDisplays() {
-  resetDisplay(1);
-  resetDisplay(2);
+  for(uint8_t displaynum=1; displaynum <= NUMBER_OF_DISPLAYS; displaynum++) {
+      resetDisplay(displaynum);
+  }
 }
 
 /**
@@ -92,103 +90,80 @@ void mizraith_HDSP2111::resetDisplays() {
  *
  */
 void mizraith_HDSP2111::resetDisplay(uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  	    DISPLAY1_LAST_UPDATE = millis();
-  	    DISPLAY1_STRING = BLANK_STRING;
-  		DISPLAY1_STRING_LENGTH = 8;
-  		DISPLAY1_SCROLL_POSITION = 0;
-  		DISPLAY1_SCROLL_COMPLETE = false;
-  		DISPLAY1_STRING_CHANGED = false;
-  		writeDisplay(BLANK_STRING, 1);
-  		break;
-  	case 2:
-  		DISPLAY2_LAST_UPDATE = millis();
-  		DISPLAY2_STRING = BLANK_STRING;
-  		DISPLAY2_LAST_UPDATE = millis();
-  		DISPLAY2_STRING_LENGTH = 8;
-  		DISPLAY2_SCROLL_POSITION = 0;
-  		DISPLAY2_SCROLL_COMPLETE = false;
-  		DISPLAY2_STRING_CHANGED = false;
-  		writeDisplay(BLANK_STRING, 2);
-  		break;
-  }
+    if( displaynum > NUMBER_OF_DISPLAYS) {
+        return;
+    } else {
+       uint8_t displayindex = displaynum-1;
+       
+       DISPLAY_DATA[displayindex].LAST_UPDATE = millis();
+       DISPLAY_DATA[displayindex].TEXT = BLANK_STRING;
+       DISPLAY_DATA[displayindex].TEXT_LENGTH = 8;
+       DISPLAY_DATA[displayindex].SCROLL_POSITION = 0;
+       DISPLAY_DATA[displayindex].SCROLL_COMPLETE = false;
+       DISPLAY_DATA[displayindex].TEXT_CHANGED = false;
+       
+       writeDisplay(DISPLAY_DATA[displayindex].TEXT, displaynum);
+   }
 }
-
-
 
 
 
 
 bool mizraith_HDSP2111::isScrollComplete(uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  		return DISPLAY1_SCROLL_COMPLETE;
-  		break;
-  	case 2:
-  		return DISPLAY2_SCROLL_COMPLETE;
-  		break;
-  	default:
-  	    return true;
-  }
+    if(displaynum > NUMBER_OF_DISPLAYS) {
+        return false;
+    } else {
+        bool sc = DISPLAY_DATA[displaynum-1].SCROLL_COMPLETE;
+        return sc;
+    } 
 }
-
 
 
 void mizraith_HDSP2111::setScrollCompleteFlag(bool flag, uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  		DISPLAY1_SCROLL_COMPLETE = flag;
-  		break;
-  	case 2:
-  		DISPLAY2_SCROLL_COMPLETE = flag;
-  		break;
-  }
+    if( displaynum > NUMBER_OF_DISPLAYS) {
+        return;
+    } else {
+        DISPLAY_DATA[displaynum-1].SCROLL_COMPLETE = flag;
+    }
 }
-
 
 
 void mizraith_HDSP2111::setScrollPosition(uint8_t pos, uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  		DISPLAY1_SCROLL_POSITION = pos;
-  		break;
-  	case 2:
-  		DISPLAY2_SCROLL_POSITION = pos;
-  		break;
-  }
+    if( displaynum > NUMBER_OF_DISPLAYS) {
+        return;
+    } else {
+        DISPLAY_DATA[displaynum-1].SCROLL_POSITION = pos;    
+    }
 }
+	
+// Automatically reset both scroll complete flag and scroll position for 
+// both displays.
+void mizraith_HDSP2111::automaticallyResetScrollFlagAndPositions(void) {
+    for(uint8_t i=1; i <= NUMBER_OF_DISPLAYS; i++) {
+        automaticallyResetScrollFlagAndPosition(i);
+    }
+}	
 	 
 //Reset scroll flag and scroll position automatically for display.
 //Keep calling every loop to keep scrolling going.
 void mizraith_HDSP2111::automaticallyResetScrollFlagAndPosition(uint8_t displaynum) {
     if(isScrollComplete(displaynum) ) {           
-      setScrollCompleteFlag(false, displaynum);
-      setScrollPosition(0, displaynum);
+        setScrollCompleteFlag(false, displaynum);
+        setScrollPosition(0, displaynum);
     }
 }
 
 
 
 
-// Automatically reset both scroll complete flag and scroll position for 
-// both displays.
-void mizraith_HDSP2111::automaticallyResetScrollFlagAndPositions(void) {
-    automaticallyResetScrollFlagAndPosition(1);
-    automaticallyResetScrollFlagAndPosition(2);
-}
+
 
 
 	  
 //Set the delay in (ms) between scroll steps	  
 void mizraith_HDSP2111::setScrollDelay(uint16_t delayms, uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  		DISPLAY1_SCROLL_DELAY = delayms;
-  		break;
-  	case 2:
-  		DISPLAY2_SCROLL_DELAY = delayms;
-  		break;
+  if( displaynum-1 < NUMBER_OF_DISPLAYS) {
+      DISPLAY_DATA[displaynum-1].SCROLL_DELAY = delayms;
   }
 }
 
@@ -199,70 +174,59 @@ void mizraith_HDSP2111::setScrollDelay(uint16_t delayms, uint8_t displaynum) {
 //      if we are just editing one character of the string.
 // (3) OTHERWISE -- passes off to setDisplayStringAsNew moethod
 void mizraith_HDSP2111::setDisplayString(char *words, uint8_t displaynum) {
-    uint8_t newlength = strlen(words);
-    uint8_t oldlength;
+    if(displaynum > NUMBER_OF_DISPLAYS) {
+        return;
+    }
+    uint8_t displayindex = displaynum - 1;
     
-    switch(displaynum) {
-  	case 1:
-  		oldlength = DISPLAY1_STRING_LENGTH;
-  		DISPLAY1_STRING_LENGTH = newlength;
-  		if (newlength == oldlength) {
-            DISPLAY1_STRING = words; 
-            DISPLAY1_STRING_CHANGED = true;
-        } else {
-            //different length, need to restart anyway
-            setDisplayStringAsNew(words, displaynum);
-        }
-  		break;
-  	case 2:
-  		oldlength = DISPLAY2_STRING_LENGTH;
-  		DISPLAY2_STRING_LENGTH = newlength;
-  		if (newlength == oldlength) {
-            DISPLAY2_STRING = words;   
-            DISPLAY1_STRING_CHANGED = true;
-        } else {
-            //different length, need to restart anyway
-            setDisplayStringAsNew(words, displaynum);
-        }
-  		break;
-  }
+    DISPLAY_DATA[displayindex].TEXT = words;
     
-}
+    if (stringLengthChanged(displaynum)) {
+        setDisplayStringAsNew(words, displaynum);  //different length, need to restart scroll
+    } else {
+        DISPLAY_DATA[displayindex].TEXT_CHANGED = true;
+    }
+} 
+//     uint8_t newlength = strlen(words);
+//     uint8_t oldlength;
+//         
+//     oldlength = DISPLAY_DATA[displayindex].TEXT_LENGTH;
+//     DISPLAY_DATA[displayindex].TEXT_LENGTH = newlength;
+//     
+//     if (newlength == oldlength) {
+//         DISPLAY_DATA[displayindex].TEXT = words; 
+//         DISPLAY_DATA[displayindex].TEXT_CHANGED = true;
+//     } else {
+//         //different length, need to restart anyway
+//         setDisplayStringAsNew(words, displaynum);
+//     }
+      
+    
 
 // This method takes in a string, and syncrhonizes all 
 // the supporting variables.  Finally,
 // it sets the DISPLAYx_STRING_CHANGED variable to true to refresh static displays
 void mizraith_HDSP2111::setDisplayStringAsNew(char *words, uint8_t displaynum) {
-  uint8_t newlength = strlen(words);
-  
-  switch(displaynum) {
-  	case 1:
-  		 DISPLAY1_STRING = words;
-  		 DISPLAY1_STRING_LENGTH = newlength;
-  		 DISPLAY1_SCROLL_POSITION = 0;   //this forces a restart during update
-  		 DISPLAY1_SCROLL_COMPLETE = false;
-  		 DISPLAY1_STRING_CHANGED = true;
-  		break;
-  	case 2:
-  		 DISPLAY2_STRING = words;
-  		 DISPLAY2_STRING_LENGTH = newlength;
-  		 DISPLAY2_SCROLL_POSITION = 0;    //this forces a restart during update
-  		 DISPLAY2_SCROLL_COMPLETE = false;
-  		 DISPLAY2_STRING_CHANGED = true;
-  		break;
-  }
+    if(displaynum > NUMBER_OF_DISPLAYS) {
+      return;
+    }
+    uint8_t displayindex = displaynum - 1;
+    uint8_t newlength = strlen(words);
+
+    DISPLAY_DATA[displayindex].TEXT = words;  
+    DISPLAY_DATA[displayindex].TEXT_LENGTH = newlength;
+    DISPLAY_DATA[displayindex].SCROLL_POSITION = 0;    
+    DISPLAY_DATA[displayindex].SCROLL_COMPLETE = false;
+    DISPLAY_DATA[displayindex].TEXT_CHANGED = true;
 }
 
 
 
 char * mizraith_HDSP2111::getDisplayString(uint8_t displaynum) {
-  switch(displaynum) {
-  	case 1:
-  		return DISPLAY1_STRING;
-  		break;
-  	case 2:
-  		return DISPLAY2_STRING;
-  		break;
+  if(displaynum > NUMBER_OF_DISPLAYS) {
+      return BLANK_STRING;
+  } else {
+      return DISPLAY_DATA[displaynum-1].TEXT;
   }
 }
 
@@ -283,54 +247,29 @@ char * mizraith_HDSP2111::getDisplayString(uint8_t displaynum) {
 //        to handle the scrolling of the display.
 void mizraith_HDSP2111::updateDisplays() {
     
-    for(int i=1 ; i<3 ; i++) {
-        //did the display change
-        switch(i) {
-          case 1:   
-             if( (DISPLAY1_STRING_LENGTH <=8) && (!DISPLAY1_STRING_CHANGED) ) {
-                //do nothing, leave display static
-             }    
-             else if( (DISPLAY1_STRING_LENGTH <=8) && (DISPLAY1_STRING_CHANGED) ) {
-                //refresh it 
-                DISPLAY1_SCROLL_COMPLETE = false;
-                writeDisplay(DISPLAY1_STRING, 1);
-             }           
-//              else if ( (DISPLAY1_STRING_LENGTH > 8) && (DISPLAY1_LENGTH_CHANGED) ) {
-//                 //we have to start over due to new length
-//                 DISPLAY1_SCROLL_POSITION = 0;
-//                 DISPLAY1_SCROLL_COMPLETE = false;
-//                 DISPLAY1_STRING_CHANGED = false;
-//                 updateDisplayScroll(1);
-//              }
-             else if  (DISPLAY1_STRING_LENGTH > 8)  {
-                //push it forward, let method handle complete flag
-                updateDisplayScroll(1);
-             }
-             DISPLAY1_STRING_CHANGED = false;
-            break;
-          case 2:
-             if( (DISPLAY2_STRING_LENGTH <=8) && (!DISPLAY2_STRING_CHANGED) ) {
-                //do nothing, leave display satic
-             } 
-             else if( (DISPLAY2_STRING_LENGTH <=8) && (DISPLAY2_STRING_CHANGED) ) {
-                //refresh it 
-                DISPLAY2_SCROLL_COMPLETE = false;
-                writeDisplay(DISPLAY1_STRING, 2);
-             }           
-//              else if ( (DISPLAY2_STRING_LENGTH > 8) && (DISPLAY2_LENGTH_CHANGED) ) {
-//                 //we have to start over due to new length
-//                 DISPLAY2_SCROLL_POSITION = 0;
-//                 DISPLAY2_SCROLL_COMPLETE = false;
-//                 DISPLAY2_STRING_CHANGED = false;
-//                 updateDisplayScroll(2);
-//              }
-             else if  (DISPLAY2_STRING_LENGTH > 8)  {
-                //push it forward, let method handle complete flag
-                updateDisplayScroll(2);
-             }
-             DISPLAY2_STRING_CHANGED = false;
-             break;
+    for(uint8_t i=0; i < NUMBER_OF_DISPLAYS; i++) {
+        uint8_t displaynum = i+1;
+        
+        if(stringLengthChanged(displaynum)) {
+            setDisplayStringAsNew(DISPLAY_DATA[i].TEXT , displaynum);
         }
+        
+        if( (DISPLAY_DATA[i].TEXT_LENGTH <=8) && (!DISPLAY_DATA[i].TEXT_CHANGED) ) {
+            //NOTE:  The following lines are "optional", as they may add
+            //unnecessary extra traffic. However, by leaving the following 
+            //active, the display can 'auto-update' short strings without intervention
+            DISPLAY_DATA[i].SCROLL_COMPLETE = false;
+            writeDisplay(DISPLAY_DATA[i].TEXT, displaynum);
+         }    
+         else if( (DISPLAY_DATA[i].TEXT_LENGTH <=8) && (DISPLAY_DATA[i].TEXT_CHANGED) ) {
+            //refresh it 
+            DISPLAY_DATA[i].SCROLL_COMPLETE = false;
+            writeDisplay(DISPLAY_DATA[i].TEXT, displaynum);
+         }           
+         else if  (DISPLAY_DATA[i].TEXT_LENGTH > 8)  {
+            updateDisplayScroll(displaynum);
+         }
+         DISPLAY_DATA[i].TEXT_CHANGED = false;
     }
 }
 
@@ -351,6 +290,8 @@ void mizraith_HDSP2111::writeDisplay(char *input, uint8_t displaynum) {
       dispCE = HDSP_CE1;
   } else if (displaynum==2) {
       dispCE = HDSP_CE2;
+  } else {
+      Serial.println(F("!!!! ERROR UNDEFINED DISPLAY ADDRESS (writeDisplay) !!!!!"));
   }
 
  for(int i=0; i<8; i++) {
@@ -408,38 +349,25 @@ void mizraith_HDSP2111::updateDisplayScroll(uint8_t displaynum) {
   char buffer[9];
   unsigned long temp;
   boolean proceed = true;
-  uint8_t i;
+  uint8_t scrollindex;
+  uint8_t displayindex = displaynum - 1 ;
   
-  
-  if(  ((displaynum==1) && DISPLAY1_SCROLL_COMPLETE) || 
-       ((displaynum==2) && DISPLAY2_SCROLL_COMPLETE) ){
+  if( displaynum > NUMBER_OF_DISPLAYS) {
     return;
   }
-  
+  if (DISPLAY_DATA[displayindex].SCROLL_COMPLETE) {
+    return;
+  }
+
   //setup display specific values
-  switch(displaynum) {
-    case 1:
-        i = DISPLAY1_SCROLL_POSITION;
-        text = DISPLAY1_STRING;
-        temp = millis() - DISPLAY1_LAST_UPDATE;
-        if (temp < DISPLAY1_SCROLL_DELAY) {
-          proceed = false;
-        } else {
-          proceed = true;
-          DISPLAY1_LAST_UPDATE = millis();
-        }
-        break;
-    case 2:
-        i = DISPLAY2_SCROLL_POSITION;
-        text = DISPLAY2_STRING;
-        temp = millis() - DISPLAY2_LAST_UPDATE;
-        if (temp < DISPLAY2_SCROLL_DELAY) {
-          proceed = false;
-        } else {
-          proceed = true;
-          DISPLAY2_LAST_UPDATE = millis();
-        }
-        break;
+  scrollindex = DISPLAY_DATA[displayindex].SCROLL_POSITION;
+  text = DISPLAY_DATA[displayindex].TEXT;
+  temp = millis() - DISPLAY_DATA[displayindex].LAST_UPDATE;
+  if (temp < DISPLAY_DATA[displayindex].SCROLL_DELAY) {
+      proceed = false;
+  } else {
+      proceed = true;
+      DISPLAY_DATA[displayindex].LAST_UPDATE = millis();
   }
 
    //check that it has been long enough since last update 
@@ -449,38 +377,31 @@ void mizraith_HDSP2111::updateDisplayScroll(uint8_t displaynum) {
   
   
   //check if our start index just hit the end of the string
-  if(text[i] != 0) {     
+  if(text[scrollindex] != 0) {     
       boolean blank = false;
       
       //now fill up our buffer. If we are scrolling
       //past the end of the string, add blank
       //characters
-      for (int j = 0; j<8; j++) {
+      for (int displaypos = 0; displaypos<8; displaypos++) {
           //seems like a bad habit to over-index the array, doesn't it?
           //but !blank prevents that from actually happening
-          if ( !blank && text[i+j] == 0 ) {  
+          if ( !blank && text[scrollindex + displaypos] == 0 ) {  
             blank = true;    //setting blank makes above tast pass through (not over-indexing array)
           }
           
           if ( blank ) {
-            buffer[j] = ' ';   //add empty space in place of null
+            buffer[displaypos] = ' ';   //add empty space in place of null
           } else {
-            buffer[j] = text[i+j];  //add char to buffer
+            buffer[displaypos] = text[scrollindex+displaypos];  //add char to buffer
           }
       }
       
       buffer[8]=0;
       writeDisplay(buffer, displaynum);   //where '1' is the display number
       
-      switch (displaynum) {
-        case 1:
-          DISPLAY1_SCROLL_POSITION++;
-          break;
-        case 2:
-          DISPLAY2_SCROLL_POSITION++;
-          break;
-      }
-            
+      
+      DISPLAY_DATA[displayindex].SCROLL_POSITION++;      
    
    } else {
        //at end of string now write a fully blank line to push
@@ -492,14 +413,7 @@ void mizraith_HDSP2111::updateDisplayScroll(uint8_t displaynum) {
        writeDisplay(buffer, displaynum);
        
        //start index was at end of string, raise flag
-       switch(displaynum) {
-         case 1:
-           DISPLAY1_SCROLL_COMPLETE = true;
-           break;
-         case 2:
-           DISPLAY2_SCROLL_COMPLETE = true;
-           break;
-       }
+       DISPLAY_DATA[displayindex].SCROLL_COMPLETE = true;
    }
      
    return;
@@ -508,44 +422,47 @@ void mizraith_HDSP2111::updateDisplayScroll(uint8_t displaynum) {
 
 
 
-
-
-
-//###########################################################################
-//###########################################################################
-
-/**
- * Blocking method to scroll through more than 8 characters at a time
- * Uses displaynum = 1 or 2 at this time....
- */
-void mizraith_HDSP2111::scrollDisplayBlocking(char *words, uint8_t displaynum) {
-  char buffer[9];
-  int i = 0;
-  while(words[i] != 0) {
-      boolean blank = false;
-      
-      for (int j = 0; j<8; j++) {
-          if ( !blank && words[i+j] == 0 ) {
-            blank = true;
-          }
-          
-          if ( blank ) {
-            buffer[j] = ' ';
-          } else {
-            buffer[j] = words[i+j];
-          }
-      }
-      
-      buffer[8]=0;
-      writeDisplay(buffer, displaynum);  
-      
-      delay(100);
-    
-      i++;
-   }
-
+bool mizraith_HDSP2111::stringLengthChanged( uint8_t displaynum ) {
+    if( displaynum > NUMBER_OF_DISPLAYS) {
+        return false;
+    } else {
+        uint8_t displayindex = displaynum - 1;
+        
+        uint8_t currentlength = strlen(DISPLAY_DATA[displayindex].TEXT);
+        uint8_t storedlength = DISPLAY_DATA[displayindex].TEXT_LENGTH;
+        
+        return (currentlength != storedlength);
+    }
 }
+ 
 
+
+
+
+
+
+void mizraith_HDSP2111::DEBUG_PrintDisplayData( void ) {
+    Serial.println(F("___HDSP2111_DISPLAY_DATA___"));
+    for(uint8_t i=0; i < NUMBER_OF_DISPLAYS; i++) {
+        uint16_t p = (uint16_t) &(DISPLAY_DATA[i]);
+        Serial.print(F("___ADDR: "));
+        Serial.print(p, DEC);
+        Serial.print(F("  --->"));
+        Serial.println(DISPLAY_DATA[i].TEXT);  
+        Serial.print(F("_Update        : "));
+        Serial.println(DISPLAY_DATA[i].LAST_UPDATE);
+        Serial.print(F("_Length        : "));
+        Serial.println(DISPLAY_DATA[i].TEXT_LENGTH);
+        Serial.print(F("_ScrollPos     : "));
+        Serial.println(DISPLAY_DATA[i].SCROLL_POSITION);
+        Serial.print(F("_ScrollDelay   : "));
+        Serial.println(DISPLAY_DATA[i].SCROLL_DELAY);
+        Serial.print(F("_ScrollComplete: "));
+        Serial.println(DISPLAY_DATA[i].SCROLL_COMPLETE );
+        Serial.print(F("_TextChanged   : "));
+        Serial.println(DISPLAY_DATA[i].TEXT_CHANGED);
+    }
+}
 
 
 

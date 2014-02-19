@@ -22,30 +22,26 @@
 #endif
 
 
+        
 class mizraith_HDSP2111 {
     Adafruit_MCP23017 mcp_display;
     uint8_t mcp_display_addr;
     
-    static char BLANK_STRING[9];
-      
-      //Scrolling Display globals;
-	unsigned long DISPLAY1_LAST_UPDATE;
-	//char          DISPLAY1_STRING[] = "       HELLO CRUEL WORLD!";
-	char         *DISPLAY1_STRING;
-	uint8_t       DISPLAY1_STRING_LENGTH;    //auto-calculated
-	uint8_t       DISPLAY1_SCROLL_POSITION;   //[0:stringlength-1]
-	uint16_t      DISPLAY1_SCROLL_DELAY;
-	bool          DISPLAY1_SCROLL_COMPLETE;  //  (sets to 1 at end of string and stops operation)
-	bool   	      DISPLAY1_STRING_CHANGED;
-	
-	unsigned long DISPLAY2_LAST_UPDATE;
-	//char          DISPLAY2_STRING[] = "       GOODBYE KIND WORLD!"; //lead-in chars are nicer for scrolling
-	char         *DISPLAY2_STRING;
-	uint8_t		  DISPLAY2_STRING_LENGTH;     //auto-calculated
-	uint8_t       DISPLAY2_SCROLL_POSITION;   //[0:stringlength-1]
-	uint16_t      DISPLAY2_SCROLL_DELAY;
-	bool          DISPLAY2_SCROLL_COMPLETE;  //  (sets to 1 at end of string and stops operation)
-	bool          DISPLAY2_STRING_CHANGED;
+    char * BLANK_STRING;
+
+    const static uint8_t NUMBER_OF_DISPLAYS = 2;
+
+    /* Structure containing state function and data */
+    struct display_data  {
+	    unsigned long LAST_UPDATE;
+	    char         *TEXT;
+	    uint8_t       TEXT_LENGTH;      //auto-calculated
+	    uint8_t       SCROLL_POSITION;  //[0:stringlength-1]
+	    uint16_t      SCROLL_DELAY;
+	    bool          SCROLL_COMPLETE;  //  (sets to 1 at end of string and stops operation)
+	    bool   	      TEXT_CHANGED;
+    } DISPLAY_DATA[NUMBER_OF_DISPLAYS];
+
 	
   public:
       mizraith_HDSP2111(void);
@@ -60,7 +56,6 @@ class mizraith_HDSP2111 {
 	  void automaticallyResetScrollFlagAndPosition(uint8_t displaynum);
 	  void automaticallyResetScrollFlagAndPositions(void);
 	  
-              
 	  
 	  //set the delay between scroll steps. Default is 150ms
 	  void setScrollDelay(uint16_t delayms, uint8_t displaynum);
@@ -97,12 +92,11 @@ class mizraith_HDSP2111 {
 	  void writeDisplay(char *input, uint8_t displaynum); 
 	  void updateDisplayScroll(uint8_t displaynum);
 	  
-	
+	  void DEBUG_PrintDisplayData( void );
 	  
-	  //this function not recommended, as it blocks with delay() calls
-	  void scrollDisplayBlocking(char *words, uint8_t displaynum);
 	  
   private:
+      bool stringLengthChanged( uint8_t displaynum );
  
 };
 
