@@ -49,6 +49,10 @@ class mizraith_HDSP2111 {
       void resetDisplays(); 
 	  void resetDisplay(uint8_t displaynum);
 	  
+	  void setBrightnessForAllDisplays(uint8_t percent);
+	  void setBrightnessForDisplay(uint8_t percent, uint8_t displaynum);
+	  
+	  
 	  //is the scroll flag complete on this
 	  bool isScrollComplete(uint8_t displaynum);
 	  void setScrollCompleteFlag(bool flag, uint8_t displaynum);
@@ -95,8 +99,13 @@ class mizraith_HDSP2111 {
 	  void DEBUG_PrintDisplayData( void );
 	  
 	  
+	  
   private:
       bool stringLengthChanged( uint8_t displaynum );
+      uint8_t getDisplayControlRegister(uint8_t displaynum);
+      uint8_t getDisplayCEFromDisplayNum(uint8_t displaynum);
+      uint8_t getBitsFromPercent(uint8_t percent);
+      void clearControlWord(uint8_t displaynum);
  
 };
 

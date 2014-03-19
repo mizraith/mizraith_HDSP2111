@@ -103,9 +103,116 @@ void mizraith_HDSP2111::resetDisplay(uint8_t displaynum) {
        DISPLAY_DATA[displayindex].TEXT_CHANGED = false;
        
        writeDisplay(DISPLAY_DATA[displayindex].TEXT, displaynum);
+       clearControlWord(displaynum);
    }
 }
 
+
+void mizraith_HDSP2111::setBrightnessForAllDisplays(uint8_t percent) {
+      for(uint8_t displaynum=1; displaynum <= NUMBER_OF_DISPLAYS; displaynum++) {
+          setBrightnessForDisplay(percent, displaynum);
+      }
+}
+
+
+void mizraith_HDSP2111::clearControlWord(uint8_t displaynum) {
+    uint8_t portA = 0;
+    uint8_t dispCE = getDisplayCEFromDisplayNum(displaynum);     
+    portA &= 0xF0;      //clear GPA0:3 == A0:3 bits before rebuilding
+    portA |= 0xF0;      //set GPA4:7 == #RD, #WR, U1CE1, U2CE2 to high
+    
+    uint8_t controlbyte = 0x00;   
+    mcp_display.writeGPIOA(portA);
+    mcp_display.writeGPIOB(controlbyte);
+    delay(1);
+    //now toggle
+    mcp_display.writePin(dispCE, LOW);
+    delay(1);
+    mcp_display.writePin(HDSP_WR, LOW);
+    delay(1);
+    mcp_display.writePin(HDSP_WR, HIGH);
+    delay(1);
+    mcp_display.writePin(dispCE, HIGH);
+    delay(1);
+}
+
+
+void mizraith_HDSP2111::setBrightnessForDisplay(uint8_t percent, uint8_t displaynum) {
+    uint8_t portA = 0;
+    uint8_t dispCE = getDisplayCEFromDisplayNum(displaynum);  
+    //first, set up our control and address signals
+    //  #RST  #CE   #WR   #RD
+    //   1    0     0     1       (#RST and #RD are typically held high all the time)
+    //  #FL   A4  A3  A2  A1  A0
+    //   1    1   0   x   x    x     On our board #FL and A4 is typically also held high all the time.
+    portA &= 0xF0;      //clear GPA0:3 == A0:3 bits before rebuilding
+    portA |= 0xF0;      //set GPA4:7 == #RD, #WR, U1CE1, U2CE2 to high
+
+    //Next set up our Data
+    //D7  0=NORMAL,  1=CLEAR FLASH AND CHAR RAM
+    //D6  0=NORMAL,  1=START SELF TEST, LOAD RESULT INTO D5
+    //D5  X=0 FAILED  X=1 PAS
+    //D4  0=DISABLE BLINKING  1=ENABLE BLINKING
+    //D3  0=DISABLE FLASH  1=ENABLE FLASH
+    //D2:D0  0b000 = 100%   0b010 = 53%     0b111 = 0%
+    // D7   D6   D5   D4   D3   D2 D1 D0
+    uint8_t controldata = getDisplayControlRegister(displaynum);
+    uint8_t brightnessbits = getBitsFromPercent(percent);
+
+    controldata &= 0xF8;       //clear out last 3 bits, leave rest untouched
+    //controldata = 0x00;      //CLOBBER IT ALL.   Option if the readback is not working!
+    controldata |= brightnessbits;    //or in new brightnessbits
+    
+    mcp_display.writeGPIOA(portA);
+    mcp_display.writeGPIOB(controldata);
+    delay(1);
+    //now toggle
+    mcp_display.writePin(dispCE, LOW);
+    delay(1);
+    mcp_display.writePin(HDSP_WR, LOW);
+    delay(1);
+    mcp_display.writePin(HDSP_WR, HIGH);
+    delay(1);
+    mcp_display.writePin(dispCE, HIGH);
+    delay(1);
+}
+
+
+uint8_t mizraith_HDSP2111::getDisplayControlRegister(uint8_t displaynum) {
+      uint8_t portA = 0;
+      //first, set up our control and address signals
+      //   #RST  #CE   #WR   #RD
+      //     1    0     1     0       (#RST and #RD are typically held high all the time)
+      //  #FL   A4  A3  A2  A1  A0
+      //   1    1   0   x   x    x     On our board #FL and A4 is typically also held high all the time.
+
+      portA &= 0xF0;      //clear GPA0:3 == A0:3 bits before rebuilding
+      portA |= 0xF0;      //set GPA4:7 == #RD, #WR, U1CE1, U2CE2 to high  
+      
+      uint8_t dispCE = getDisplayCEFromDisplayNum(displaynum);
+      
+      //temporarily set up the MCP port as an input
+      mcp_display.setGPIOBMode(0x11);     // 1=input 0=output  set all as outputs
+      mcp_display.writeGPIOA(portA);
+      mcp_display.writeGPIOB(0x00);       //It seems I have to do this or I get erroneous readbacks
+      //now toggle
+      mcp_display.writePin(dispCE, LOW);
+      delay(1);
+      mcp_display.writePin(HDSP_RD, LOW);
+      delay(3);
+      //load into local byte BEFORE releasing READ pin
+      uint8_t controldata = mcp_display.readGPIOB();
+      controldata = mcp_display.readGPIOB();
+      mcp_display.writePin(HDSP_RD, HIGH);
+      delay(1);
+      mcp_display.writePin(dispCE, HIGH);
+      delay(1);      
+        
+      //set ot back as an output
+      mcp_display.setGPIOBMode(0x00);     // 1=input 0=output  set all as outputs
+
+      return controldata;
+}
 
 
 
@@ -187,20 +294,6 @@ void mizraith_HDSP2111::setDisplayString(char *words, uint8_t displaynum) {
         DISPLAY_DATA[displayindex].TEXT_CHANGED = true;
     }
 } 
-//     uint8_t newlength = strlen(words);
-//     uint8_t oldlength;
-//         
-//     oldlength = DISPLAY_DATA[displayindex].TEXT_LENGTH;
-//     DISPLAY_DATA[displayindex].TEXT_LENGTH = newlength;
-//     
-//     if (newlength == oldlength) {
-//         DISPLAY_DATA[displayindex].TEXT = words; 
-//         DISPLAY_DATA[displayindex].TEXT_CHANGED = true;
-//     } else {
-//         //different length, need to restart anyway
-//         setDisplayStringAsNew(words, displaynum);
-//     }
-      
     
 
 // This method takes in a string, and syncrhonizes all 
@@ -282,46 +375,70 @@ void mizraith_HDSP2111::updateDisplays() {
  * must = 1 or 2 right now.
  */
 void mizraith_HDSP2111::writeDisplay(char *input, uint8_t displaynum) {
-  uint8_t portA = 0;
-  uint8_t portB = 0;
+    uint8_t portA = 0;
+    uint8_t portB = 0;
   
-  uint8_t dispCE = 0;
-  if (displaynum == 1) {
-      dispCE = HDSP_CE1;
-  } else if (displaynum==2) {
-      dispCE = HDSP_CE2;
-  } else {
-      Serial.println(F("!!!! ERROR UNDEFINED DISPLAY ADDRESS (writeDisplay) !!!!!"));
-  }
+    uint8_t dispCE = getDisplayCEFromDisplayNum(displaynum);
 
- for(int i=0; i<8; i++) {
-      portA &= 0xF0;      //clear A0:2 bits before rebuilding
-      portA |= 0xF8;      //set A3, RD, WR, CE1, CE2 to high
+   for(int i=0; i<8; i++) {
+       portA &= 0xF0;      //clear A0:2 bits before rebuilding
+       portA |= 0xF8;      //set A3, RD, WR, CE1, CE2 to high
       
-      portA |= i;         //set A0, A1, A2 bits
+       portA |= i;         //set A0, A1, A2 bits
       
-      portB = input[i];   //Cool!  the HDSP2111 uses ASCII mapping.
+       portB = input[i];   //Cool!  the HDSP2111 uses ASCII mapping.
 
-      //Put these out on the ports, then toggle write pins
-      mcp_display.writeGPIOA(portA);
-      mcp_display.writeGPIOB(portB);
-      delay(1);
-      //now toggle
-      mcp_display.writePin(dispCE, LOW);
-      delay(1);
-      mcp_display.writePin(HDSP_WR, LOW);
-      delay(1);
-      mcp_display.writePin(dispCE, HIGH);
-      delay(1);
-      mcp_display.writePin(HDSP_WR, HIGH);
-      delay(1);
-  }
+       //Put these out on the ports, then toggle write pins
+       mcp_display.writeGPIOA(portA);
+       mcp_display.writeGPIOB(portB);
+       delay(1);
+       //now toggle
+       mcp_display.writePin(dispCE, LOW);
+       delay(1);
+       mcp_display.writePin(HDSP_WR, LOW);
+       delay(1);
+       mcp_display.writePin(dispCE, HIGH);
+       delay(1);
+       mcp_display.writePin(HDSP_WR, HIGH);
+       delay(1);
+    }
+}
 
+uint8_t mizraith_HDSP2111::getDisplayCEFromDisplayNum(uint8_t displaynum) {
+    uint8_t dispCE = 0;
+    if (displaynum == 1) {
+        dispCE = HDSP_CE1;
+    } else if (displaynum==2) {
+        dispCE = HDSP_CE2;
+    } else {
+        Serial.println(F("!!!! ERROR UNDEFINED DISPLAY ADDRESS (writeDisplay) !!!!!"));
+        dispCE = HDSP_CE1;
+    }
+    return dispCE;
 }
 
 
-
-
+uint8_t mizraith_HDSP2111::getBitsFromPercent(uint8_t percent) {
+    //calculate 3 bit value from percent, brute-force style
+    // 000 = 100%   001 = 80%  010 = 53%  011 = 40%  100 = 27%  101 = 20%  110 = 13%   111 = 0%  
+    if   ( percent < 7 ) {
+        return 0b00000111;
+    } if (percent < 16 ) {
+        return 0b00000110;
+    } if (percent < 25 ) {
+        return 0b00000101;
+    } if (percent < 35 ) {
+        return 0b00000100;
+    } if (percent < 47 ) {
+        return 0b00000011;
+    } if (percent < 62 ) {
+        return 0b00000010;
+    } if (percent < 91 ) {
+        return 0b00000001;
+    } else {
+        return 0b00000000;
+    }
+}
 
 /**
  *  Given a preloaded string in DISPLAY1_STRING, 
