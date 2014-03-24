@@ -49,8 +49,18 @@ class mizraith_HDSP2111 {
       void resetDisplays(); 
 	  void resetDisplay(uint8_t displaynum);
 	  
-	  void setBrightnessForAllDisplays(uint8_t percent);
-	  void setBrightnessForDisplay(uint8_t percent, uint8_t displaynum);
+	  //where brightness value is 0:6 inclusive.  We don't allow an 'off' setting of 7
+	  void setBrightnessForAllDisplays(uint8_t value);
+	  void setBrightnessForDisplay(uint8_t value, uint8_t displaynum);
+	  //where percentage is 0-100%
+	  void setBrightnessPercentageForAllDisplays(uint8_t percent);
+	  void setBrightnessPercentageForDisplay(uint8_t percent, uint8_t displaynum);
+	  
+	  
+	  //set scroll speed from 0:7 [without having to think about ms]
+	  void setScrollSpeedForAllDisplays(uint8_t value);
+	  //lower level set the delay between scroll steps. Default is 150ms
+	  void setScrollDelay(uint16_t delayms, uint8_t displaynum);
 	  
 	  
 	  //is the scroll flag complete on this
@@ -60,11 +70,8 @@ class mizraith_HDSP2111 {
 	  void automaticallyResetScrollFlagAndPosition(uint8_t displaynum);
 	  void automaticallyResetScrollFlagAndPositions(void);
 	  
-	  
-	  //set the delay between scroll steps. Default is 150ms
-	  void setScrollDelay(uint16_t delayms, uint8_t displaynum);
-	  
-	  
+
+
 	  
 	  //useful for tweaking the same display string if scrolling
 	  void setDisplayString(char *words, uint8_t displaynum);

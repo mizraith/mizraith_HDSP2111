@@ -108,11 +108,7 @@ void mizraith_HDSP2111::resetDisplay(uint8_t displaynum) {
 }
 
 
-void mizraith_HDSP2111::setBrightnessForAllDisplays(uint8_t percent) {
-      for(uint8_t displaynum=1; displaynum <= NUMBER_OF_DISPLAYS; displaynum++) {
-          setBrightnessForDisplay(percent, displaynum);
-      }
-}
+
 
 
 void mizraith_HDSP2111::clearControlWord(uint8_t displaynum) {
@@ -136,8 +132,21 @@ void mizraith_HDSP2111::clearControlWord(uint8_t displaynum) {
     delay(1);
 }
 
+//set brightness using corresponding 3 bit value, were 0x00 = 100% and 0x07= 0%
+//in this case, however, we do not allow a 0x07, so as to prevent completely blanking display.
+void mizraith_HDSP2111::setBrightnessForAllDisplays(uint8_t value) {
+    if (value >=7 ) {     //7 = off....ignore that.
+        return;  //do nothing.
+    }
+    for(uint8_t displaynum=1; displaynum <= NUMBER_OF_DISPLAYS; displaynum++) {
+          setBrightnessForDisplay(value, displaynum);
+    }
+}
 
-void mizraith_HDSP2111::setBrightnessForDisplay(uint8_t percent, uint8_t displaynum) {
+void mizraith_HDSP2111::setBrightnessForDisplay(uint8_t value, uint8_t displaynum) {
+    if (value >=7 ) {     //7 = off....ignore that.
+        return;  //do nothing.
+    }
     uint8_t portA = 0;
     uint8_t dispCE = getDisplayCEFromDisplayNum(displaynum);  
     //first, set up our control and address signals
@@ -147,21 +156,12 @@ void mizraith_HDSP2111::setBrightnessForDisplay(uint8_t percent, uint8_t display
     //   1    1   0   x   x    x     On our board #FL and A4 is typically also held high all the time.
     portA &= 0xF0;      //clear GPA0:3 == A0:3 bits before rebuilding
     portA |= 0xF0;      //set GPA4:7 == #RD, #WR, U1CE1, U2CE2 to high
-
-    //Next set up our Data
-    //D7  0=NORMAL,  1=CLEAR FLASH AND CHAR RAM
-    //D6  0=NORMAL,  1=START SELF TEST, LOAD RESULT INTO D5
-    //D5  X=0 FAILED  X=1 PAS
-    //D4  0=DISABLE BLINKING  1=ENABLE BLINKING
-    //D3  0=DISABLE FLASH  1=ENABLE FLASH
-    //D2:D0  0b000 = 100%   0b010 = 53%     0b111 = 0%
-    // D7   D6   D5   D4   D3   D2 D1 D0
+    
     uint8_t controldata = getDisplayControlRegister(displaynum);
-    uint8_t brightnessbits = getBitsFromPercent(percent);
 
     controldata &= 0xF8;       //clear out last 3 bits, leave rest untouched
     //controldata = 0x00;      //CLOBBER IT ALL.   Option if the readback is not working!
-    controldata |= brightnessbits;    //or in new brightnessbits
+    controldata |= value;    //or in new brightnessbits
     
     mcp_display.writeGPIOA(portA);
     mcp_display.writeGPIOB(controldata);
@@ -178,6 +178,26 @@ void mizraith_HDSP2111::setBrightnessForDisplay(uint8_t percent, uint8_t display
 }
 
 
+void mizraith_HDSP2111::setBrightnessPercentageForAllDisplays(uint8_t percent) {
+      for(uint8_t displaynum=1; displaynum <= NUMBER_OF_DISPLAYS; displaynum++) {
+          setBrightnessForDisplay(percent, displaynum);
+      }
+}
+
+void mizraith_HDSP2111::setBrightnessPercentageForDisplay(uint8_t percent, uint8_t displaynum) {
+    uint8_t value = getBitsFromPercent(percent);
+    setBrightnessForDisplay(value, displaynum);
+}
+
+
+//  From datasheet --------------------------------------
+//D7  0=NORMAL,  1=CLEAR FLASH AND CHAR RAM
+//D6  0=NORMAL,  1=START SELF TEST, LOAD RESULT INTO D5
+//D5  X=0 FAILED  X=1 PAS
+//D4  0=DISABLE BLINKING  1=ENABLE BLINKING
+//D3  0=DISABLE FLASH  1=ENABLE FLASH
+//D2:D0  0b000 = 100%   0b010 = 53%     0b111 = 0%
+//-------------------------------------------------------
 uint8_t mizraith_HDSP2111::getDisplayControlRegister(uint8_t displaynum) {
       uint8_t portA = 0;
       //first, set up our control and address signals
@@ -263,8 +283,44 @@ void mizraith_HDSP2111::automaticallyResetScrollFlagAndPosition(uint8_t displayn
 
 
 
+// provide value from 0:7 which corresponds to a range of scroll delays
+// In this case, value 0x04 is deemed 'in the middle', or optimal.
+void mizraith_HDSP2111::setScrollSpeedForAllDisplays(uint8_t value) {
+    uint16_t delayms = 120;
+    switch( value ) {
+        case 0:
+            delayms = 20;     
+            break;
+        case 1:
+            delayms = 40;
+            break;
+        case 2:
+            delayms = 80;      //really doesn't get much faster than this based on code limits
+            break;
+        case 3:
+            delayms = 120;
+            break;  
+        case 4:
+            delayms = 160;
+            break;
+        case 5:
+            delayms = 200;
+            break;
+        case 6:
+            delayms = 240;
+            break;
+        case 7:
+            delayms = 300;
+            break;
+        default:
+            delayms = 120;
+            break;
+    }
+    for(uint8_t i=1; i <= NUMBER_OF_DISPLAYS; i++) {
+        setScrollDelay(delayms, i);
+    }
 
-
+}
 
 	  
 //Set the delay in (ms) between scroll steps	  
